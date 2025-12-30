@@ -43,5 +43,5 @@ test = [
 [tool.setuptools]
 packages = ["awswaf"]
 
-[project.scripts]
-awswaf = "awswaf.__init__:main"
+[tool.setuptools.package-data]
+"*" = ["*.py","*.json"]
