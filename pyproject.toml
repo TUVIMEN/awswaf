@@ -1,0 +1,47 @@
+[build-system]
+requires = ["setuptools"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "awswaf"
+version = "0.0.1"
+description = "Solver for the AWS WAF challenge"
+readme = "README.md"
+requires-python = ">=3.8"
+license = {text = "MIT"}
+keywords = ["aws-waf", "solver"]
+
+dependencies = ["curl_cffi", "pyscrypt"]
+
+classifiers = [
+  "Development Status :: 5 - Production/Stable",
+
+  "License :: OSI Approved :: MIT License",
+
+  "Operating System :: OS Independent",
+
+  "Framework :: Pytest",
+
+  "Programming Language :: Python :: 3",
+  "Programming Language :: Python :: 3.8",
+  "Programming Language :: Python :: 3.9",
+  "Programming Language :: Python :: 3.10",
+  "Programming Language :: Python :: 3.11",
+  "Programming Language :: Python :: 3.12",
+  "Programming Language :: Python :: 3.13",
+  "Programming Language :: Python :: 3 :: Only",
+]
+
+[project.urls]
+"Homepage" = "https://github.com/xKiian/awswaf"
+
+[project.optional-dependencies]
+test = [
+    "pytest",
+]
+
+[tool.setuptools]
+packages = ["awswaf"]
+
+[project.scripts]
+awswaf = "awswaf.__init__:main"
