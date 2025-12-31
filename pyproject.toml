@@ -11,7 +11,7 @@ requires-python = ">=3.8"
 license = {text = "MIT"}
 keywords = ["aws-waf", "solver"]
 
-dependencies = ["curl_cffi", "pyscrypt"]
+dependencies = ["pyscrypt"]
 
 classifiers = [
   "Development Status :: 5 - Production/Stable",

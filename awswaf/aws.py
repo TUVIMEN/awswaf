@@ -3,7 +3,6 @@ from typing import Tuple
 import re
 from urllib.parse import urlparse
 
-from curl_cffi import requests
 from .verify import CHALLENGE_TYPES
 from .fingerprint import get_fp
 
@@ -63,19 +62,32 @@ def detect_challenge(response) -> bool:
     return True
 
 
-def token(
-    ses,
-    goku_props: str,
-    endpoint: str,
-    domain: str,
-    user_agent: str = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/136.0.0.0 Safari/537.36",
-):
+def token(ses, goku_props: str, endpoint: str, domain: str):
+    internal_headers = {
+        "connection": "keep-alive",
+        "sec-ch-ua-platform": '"Windows"',
+        "sec-ch-ua": '"Chromium";v="136", "Google Chrome";v="136", "Not.A/Brand";v="99"',
+        "sec-ch-ua-mobile": "?0",
+        "accept": "*/*",
+        # "origin": "https://www.binance.com",
+        "sec-fetch-site": "cross-site",
+        "sec-fetch-mode": "cors",
+        "sec-fetch-dest": "empty",
+        # "referer": "https://www.binance.com/",
+        "accept-encoding": "gzip, deflate, br, zstd",
+        "accept-language": "en-US,en;q=0.9",
+        # "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/136.0.0.0 Safari/537.36",
+    }
+    internal_headers.update(ses.headers)
+
     def get_inputs():
-        return ses.get(f"https://{endpoint}/inputs?client=browser").json()
+        return ses.get(
+            f"https://{endpoint}/inputs?client=browser", headers=internal_headers
+        ).json()
 
     def build_payload(inputs: dict):
         verify_func = CHALLENGE_TYPES[inputs["challenge_type"]]
-        checksum, fp = get_fp(user_agent)
+        checksum, fp = get_fp(internal_headers.get("User-Agent", ""))
         return {
             "challenge": inputs["challenge"],
             "checksum": checksum,
@@ -115,24 +127,12 @@ def token(
         }
 
     def verify(payload):
-        ses.headers = {
-            "connection": "keep-alive",
-            "sec-ch-ua-platform": '"Windows"',
-            "user-agent": user_agent,
-            "sec-ch-ua": '"Chromium";v="136", "Google Chrome";v="136", "Not.A/Brand";v="99"',
-            "content-type": "text/plain;charset=UTF-8",
-            "sec-ch-ua-mobile": "?0",
-            "accept": "*/*",
-            # "origin": "https://www.binance.com",
-            "sec-fetch-site": "cross-site",
-            "sec-fetch-mode": "cors",
-            "sec-fetch-dest": "empty",
-            # "referer": "https://www.binance.com/",
-            "accept-encoding": "gzip, deflate, br, zstd",
-            "accept-language": "en-US,en;q=0.9",
-        }
+        headers = internal_headers.copy()
+        headers.update({"content-type": "text/plain;charset=UTF-8"})
 
-        res = ses.post(f"https://{endpoint}/verify", json=payload).json()
+        res = ses.post(
+            f"https://{endpoint}/verify", json=payload, headers=internal_headers
+        ).json()
         return res["token"]
 
     inputs = get_inputs()
