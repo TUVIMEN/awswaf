@@ -1,10 +1,17 @@
 import random, json
 from typing import Tuple
 import re
+from threading import Lock
+import time
+
 from urllib.parse import urlparse
 
 from .verify import CHALLENGE_TYPES
 from .fingerprint import get_fp
+
+
+class Error(Exception):
+    pass
 
 
 def extract(html: str) -> Tuple[dict, str]:
@@ -62,7 +69,10 @@ def detect_challenge(response) -> bool:
     return True
 
 
-def token(ses, goku_props: str, endpoint: str, domain: str):
+def token(ses, goku_props: str, endpoint: str, domain: str, requestfunc=None):
+    if requestfunc is None:
+        requestfunc = ses.request
+
     internal_headers = {
         "connection": "keep-alive",
         "sec-ch-ua-platform": '"Windows"',
@@ -81,8 +91,8 @@ def token(ses, goku_props: str, endpoint: str, domain: str):
     internal_headers.update(ses.headers)
 
     def get_inputs():
-        return ses.get(
-            f"https://{endpoint}/inputs?client=browser", headers=internal_headers
+        return requestfunc(
+            "get", f"https://{endpoint}/inputs?client=browser", headers=internal_headers
         ).json()
 
     def build_payload(inputs: dict):
@@ -130,8 +140,8 @@ def token(ses, goku_props: str, endpoint: str, domain: str):
         headers = internal_headers.copy()
         headers.update({"content-type": "text/plain;charset=UTF-8"})
 
-        res = ses.post(
-            f"https://{endpoint}/verify", json=payload, headers=internal_headers
+        res = requestfunc(
+            "post", f"https://{endpoint}/verify", json=payload, headers=internal_headers
         ).json()
         return res["token"]
 
@@ -140,11 +150,51 @@ def token(ses, goku_props: str, endpoint: str, domain: str):
     return verify(payload)
 
 
-def solve(session, response, url):
+def solve(session, response, url, requestfunc=None):
     goku, endpoint = extract(response.text)
 
-    tk = token(session, goku, endpoint, urlparse(url).hostname)
+    tk = token(session, goku, endpoint, urlparse(url).hostname, requestfunc=requestfunc)
 
     assert valid_token(tk)
 
     return {"aws-waf-token": tk}
+
+
+def session_wrap(session):
+    lock = Lock()
+    func = session.request
+
+    def request_func(method: str, url: str, **kwargs):
+        count = 0
+        solve_resp = None
+        failed = False
+        retries = 2
+
+        while True:
+            if not failed:
+                resp = func(method, url, **kwargs)
+
+            if failed or detect_challenge(resp):
+                if count >= retries:
+                    break
+                count += 1
+
+                if lock.locked():
+                    time.sleep(10)
+                else:
+                    with lock:
+                        try:
+                            solve_resp = solve(session, resp, url, requestfunc=func)
+                        except Exception:
+                            failed = True
+                        else:
+                            failed = False
+                            session.cookies.update(solve_resp)
+                continue
+
+            return resp
+        raise Error(f"Couldn't solve for {url}")
+
+    session.request = request_func
+
+    return session
